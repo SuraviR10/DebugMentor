@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>CodeAid AI — Student Debugging Assistant</title>
+  <title>CodeAid AI — Intelligent Programming Learning Assistant</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -20,6 +20,7 @@
       <button class="btn-run-arrow" id="btnRunDrop">▾</button>
     </div>
     <button class="btn-debug" id="btnDebugMode">🐛 Debug Mode</button>
+    <button class="btn-logic" id="btnLogicBuilder">🧠 Logic Builder</button>
     <div class="lang-select">C (GCC) <span>▾</span></div>
     <div class="progress-ring-wrap">
       <svg class="progress-ring" width="52" height="52">
@@ -35,8 +36,8 @@
       <span class="stat-val green" id="statFixed">✔ 0</span>
     </div>
     <div class="stat-box">
-      <span class="stat-label">Current File</span>
-      <span class="stat-val">📄 main.c</span>
+      <span class="stat-label">Session Score</span>
+      <span class="stat-val blue" id="statScore">0 pts</span>
     </div>
     <div class="stat-box">
       <span class="stat-label">Last Run Status</span>
@@ -44,9 +45,10 @@
     </div>
   </div>
   <div class="topbar-right">
-    <span class="offline-badge">🔌 Offline</span>
+    <span class="offline-badge" id="modeBadge">🔌 Offline</span>
     <button class="btn-icon" id="btnTheme" title="Toggle theme">🌙</button>
     <button class="btn-focus" id="btnFocus">🎯 Focus Mode</button>
+    <a href="dashboard.html" class="btn-dashboard" target="_blank">📊 Faculty</a>
   </div>
 </header>
 
@@ -59,73 +61,112 @@
     <button class="sidebar-btn" data-panel="console"><span>&gt;_</span>Console</button>
     <button class="sidebar-btn" data-panel="ai"><span>🤖</span>AI Help</button>
     <button class="sidebar-btn" data-panel="history"><span>🕐</span>History</button>
+    <button class="sidebar-btn" data-panel="performance"><span>📈</span>Stats</button>
     <button class="sidebar-btn" data-panel="settings"><span>⚙</span>Settings</button>
   </aside>
 
   <!-- CENTER PANEL -->
   <div class="center-panel">
 
-    <!-- EDITOR -->
-    <div class="editor-area">
-      <div class="editor-tabs">
-        <div class="tab active">📄 main.c <span class="dot blue"></span></div>
-        <div class="tab">test.c</div>
-        <div class="tab-add" title="New file">+</div>
+    <!-- EDITOR PANEL -->
+    <div class="panel-view active" id="panelEditor">
+      <div class="editor-area">
+        <div class="editor-tabs">
+          <div class="tab active">📄 main.c <span class="dot blue"></span></div>
+          <div class="tab">test.c</div>
+          <div class="tab-add" title="New file">+</div>
+        </div>
+        <div class="editor-body">
+          <div class="line-numbers" id="lineNumbers"></div>
+          <div class="code-content">
+            <textarea id="codeEditor" spellcheck="false" placeholder="// Write your C code here..."></textarea>
+          </div>
+        </div>
       </div>
-      <div class="editor-body">
-        <div class="line-numbers" id="lineNumbers"></div>
-        <div class="code-content">
-          <textarea id="codeEditor" spellcheck="false" placeholder="// Write your C code here..."></textarea>
+
+      <!-- BOTTOM ROW -->
+      <div class="bottom-row">
+        <div class="console-area">
+          <div class="console-tabs">
+            <div class="ctab active" data-ctab="console">&gt;_ Console</div>
+            <div class="ctab" data-ctab="build">Build Output</div>
+            <div class="console-actions">
+              <button class="btn-icon-sm" id="btnClearConsole" title="Clear">🗑</button>
+              <button class="btn-icon-sm" id="btnCopyConsole" title="Copy">⧉</button>
+            </div>
+          </div>
+          <div class="console-output" id="consoleOutput"></div>
+        </div>
+        <div class="quick-insights">
+          <div class="qi-title">Quick Insights ✨</div>
+          <div class="qi-item red">
+            <span class="qi-dot">⊗</span>
+            <div>
+              <div class="qi-head red-text">Most Common Error</div>
+              <div class="qi-sub" id="qiCommon">—</div>
+            </div>
+          </div>
+          <div class="qi-item yellow">
+            <span class="qi-dot">⚠</span>
+            <div>
+              <div class="qi-head yellow-text">Last Mistake</div>
+              <div class="qi-sub" id="qiLast">—</div>
+            </div>
+          </div>
+          <div class="qi-item green">
+            <span class="qi-dot">💡</span>
+            <div>
+              <div class="qi-head green-text">Suggestion</div>
+              <div class="qi-sub" id="qiSuggest">Run your code to get insights.</div>
+            </div>
+          </div>
+          <div class="qi-divider"></div>
+          <div class="qi-title" style="margin-top:6px">Error Pattern 📊</div>
+          <div class="pattern-bars" id="patternBars"></div>
         </div>
       </div>
     </div>
 
-    <!-- BOTTOM ROW: Console + Quick Insights -->
-    <div class="bottom-row">
-
-      <!-- CONSOLE -->
-      <div class="console-area">
-        <div class="console-tabs">
-          <div class="ctab active" data-ctab="console">&gt;_ Console</div>
-          <div class="ctab" data-ctab="build">Build Output</div>
-          <div class="console-actions">
-            <button class="btn-icon-sm" id="btnClearConsole" title="Clear">🗑</button>
-            <button class="btn-icon-sm" title="Copy">⧉</button>
+    <!-- PERFORMANCE PANEL -->
+    <div class="panel-view" id="panelPerformance">
+      <div class="perf-panel">
+        <div class="perf-header">📈 Student Performance Tracker</div>
+        <div class="perf-grid">
+          <div class="perf-card">
+            <div class="perf-num" id="perfTotal">0</div>
+            <div class="perf-label">Total Runs</div>
+          </div>
+          <div class="perf-card green-card">
+            <div class="perf-num" id="perfFixed">0</div>
+            <div class="perf-label">Errors Fixed</div>
+          </div>
+          <div class="perf-card blue-card">
+            <div class="perf-num" id="perfScore">0</div>
+            <div class="perf-label">Total Score</div>
+          </div>
+          <div class="perf-card yellow-card">
+            <div class="perf-num" id="perfStreak">0</div>
+            <div class="perf-label">Fix Streak 🔥</div>
           </div>
         </div>
-        <div class="console-output" id="consoleOutput"></div>
+        <div class="perf-section-title">Weak Topics (needs improvement)</div>
+        <div id="weakTopics" class="weak-topics"></div>
+        <div class="perf-section-title">Personalized Feedback</div>
+        <div id="personalFeedback" class="personal-feedback">Run your code to generate feedback.</div>
+        <div class="perf-section-title">Session History</div>
+        <div id="sessionHistory" class="session-history"></div>
+        <button class="btn-clear-history" id="btnClearHistory">🗑 Clear History</button>
       </div>
-
-      <!-- QUICK INSIGHTS -->
-      <div class="quick-insights">
-        <div class="qi-title">Quick Insights ✨</div>
-        <div class="qi-item red">
-          <span class="qi-dot">⊗</span>
-          <div>
-            <div class="qi-head red-text">Most Common Error</div>
-            <div class="qi-sub" id="qiCommon">—</div>
-          </div>
-        </div>
-        <div class="qi-item yellow">
-          <span class="qi-dot">⚠</span>
-          <div>
-            <div class="qi-head yellow-text">Last Mistake</div>
-            <div class="qi-sub" id="qiLast">—</div>
-          </div>
-        </div>
-        <div class="qi-item green">
-          <span class="qi-dot">💡</span>
-          <div>
-            <div class="qi-head green-text">Suggestion</div>
-            <div class="qi-sub" id="qiSuggest">Run your code to get insights.</div>
-          </div>
-        </div>
-        <div class="qi-divider"></div>
-        <div class="qi-title" style="margin-top:6px">Error Pattern 📊</div>
-        <div class="pattern-bars" id="patternBars"></div>
-      </div>
-
     </div>
+
+    <!-- HISTORY PANEL -->
+    <div class="panel-view" id="panelHistory">
+      <div class="perf-panel">
+        <div class="perf-header">🕐 Run History</div>
+        <div id="runHistory" class="run-history"></div>
+      </div>
+    </div>
+
   </div>
 
   <!-- RIGHT PANEL -->
@@ -154,6 +195,16 @@
         <span class="adot" id="dot1"></span>
         <span class="adot" id="dot2"></span>
         <span class="adot" id="dot3"></span>
+      </div>
+      <!-- HINT LEVELS -->
+      <div class="hint-section">
+        <div class="hint-label">💡 Hints</div>
+        <div class="hint-btns">
+          <button class="hint-btn" id="hintBtn1" data-level="1">Hint 1</button>
+          <button class="hint-btn" id="hintBtn2" data-level="2" disabled>Hint 2</button>
+          <button class="hint-btn" id="hintBtn3" data-level="3" disabled>Hint 3</button>
+        </div>
+        <div class="hint-text" id="hintText"></div>
       </div>
       <button class="btn-try" id="btnTryRun">▶ Try My Fix</button>
     </div>
@@ -195,15 +246,16 @@
         <button class="btn-icon-sm" id="btnCloseChat">✕</button>
       </div>
       <div class="ai-chat-body" id="chatBody">
-        <div class="ai-msg bot">Hi! 👋 I'm CodeAid AI.<br>I can help you understand errors, explain code, or suggest fixes. What would you like to know?</div>
+        <div class="ai-msg bot">Hi! 👋 I'm CodeAid AI.<br>I help you <strong>understand</strong> errors and <strong>think through</strong> logic — not just give answers. What would you like to know?</div>
       </div>
       <div class="ai-quick-btns">
         <button class="ai-quick-btn" data-q="why">Why am I getting this error?</button>
         <button class="ai-quick-btn" data-q="explain">Explain this code</button>
         <button class="ai-quick-btn" data-q="fix">How do I fix this?</button>
+        <button class="ai-quick-btn" data-q="logic">Guide me step by step</button>
       </div>
       <div class="ai-chat-input">
-        <input type="text" id="chatInput" placeholder="Type your message..." />
+        <input type="text" id="chatInput" placeholder="Ask me anything about your code..." />
         <button class="btn-send" id="btnSend">➤</button>
       </div>
     </div>
@@ -239,6 +291,24 @@
   <span class="ml-auto" id="sbCursor">Cursor: Ln 1, Col 1</span>
   <span class="ready-dot" id="readyDot"></span><span id="readyText">Ready</span>
 </footer>
+
+<!-- LOGIC BUILDER MODAL -->
+<div class="modal-overlay" id="logicModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🧠 Logic Builder — Step-by-Step Guide</div>
+      <button class="modal-close" id="closeLogicModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="lb-intro">Describe what your program should do, and I'll break it into logical steps for you to build one at a time.</div>
+      <div class="lb-input-row">
+        <input type="text" id="lbProblem" placeholder="e.g. Add two numbers and print the result" />
+        <button class="btn-lb-generate" id="btnLbGenerate">Generate Steps</button>
+      </div>
+      <div id="lbStepsArea" class="lb-steps-area"></div>
+    </div>
+  </div>
+</div>
 
 <script src="script.js"></script>
 </body>
