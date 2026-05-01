@@ -14,7 +14,8 @@ defs.appendChild(grad); svgEl.insertBefore(defs, svgEl.firstChild);
 
 /* ── State ── */
 const state = {
-  errors: [],
+  errors: [], // Now populated from the backend
+  totalRuns: 0,
   attempts: 0,
   maxAttempts: 3,
   fixUnlocked: false,
@@ -28,9 +29,14 @@ const editor       = document.getElementById('codeEditor');
 const lineNums     = document.getElementById('lineNumbers');
 const consoleOut   = document.getElementById('consoleOutput');
 const btnRun       = document.getElementById('btnRun');
+const btnLogic     = document.getElementById('btnLogicBuilder');
+const logicModal   = document.getElementById('logicModal');
 const btnTryRun    = document.getElementById('btnTryRun');
 const btnApply     = document.getElementById('btnApply');
 const btnDebugMode = document.getElementById('btnDebugMode');
+const btnLbGenerate = document.getElementById('btnLbGenerate');
+const lbProblem    = document.getElementById('lbProblem');
+const lbStepsArea  = document.getElementById('lbStepsArea');
 const btnFocus     = document.getElementById('btnFocus');
 const btnTheme     = document.getElementById('btnTheme');
 const motiveBanner = document.getElementById('motiveBanner');
@@ -41,6 +47,7 @@ const attemptCount = document.getElementById('attemptCount');
 const debugSteps   = document.getElementById('debugSteps');
 const diffBefore   = document.getElementById('diffBefore');
 const diffAfter    = document.getElementById('diffAfter');
+const hintText     = document.getElementById('hintText');
 const fixConf      = document.getElementById('fixConfidence');
 const statFixed    = document.getElementById('statFixed');
 const statStatus   = document.getElementById('statStatus');
@@ -55,11 +62,22 @@ const qiCommon     = document.getElementById('qiCommon');
 const qiLast       = document.getElementById('qiLast');
 const qiSuggest    = document.getElementById('qiSuggest');
 const patternBars  = document.getElementById('patternBars');
+const perfTotal    = document.getElementById('perfTotal');
+const perfFixed    = document.getElementById('perfFixed');
+const perfScore    = document.getElementById('perfScore');
+const perfStreak   = document.getElementById('perfStreak');
 const chatBody     = document.getElementById('chatBody');
 const chatInput    = document.getElementById('chatInput');
 const dots         = [document.getElementById('dot1'), document.getElementById('dot2'), document.getElementById('dot3')];
 
-/* ── Default code ── */
+/* ── Logic Builder Refs ── */
+const closeLogic   = document.getElementById('closeLogicModal');
+btnLogic.addEventListener('click', () => logicModal.classList.add('active'));
+closeLogic.addEventListener('click', () => logicModal.classList.remove('active'));
+window.addEventListener('click', (e) => { if(e.target === logicModal) logicModal.classList.remove('active'); });
+
+
+/* ── Default C Template ── */
 editor.value = `#include <stdio.h>
 
 int add(int a, int b) {
@@ -71,118 +89,47 @@ int main() {
     int y = 20;
 
     int sum = add(x, y)
-    printf("Sum: %d\\n", sum)
+    printf("Sum: %d\\n", sum);
 
     return 0;
 }
 `;
 
-/* ── Error knowledge base ── */
-const errorDB = {
-  'missing_semicolon': {
-    label: 'Missing Semicolon',
-    explain: 'The compiler expects a semicolon (;) at the end of each statement. It marks the end of an instruction. Missing it causes a syntax error.',
-    concepts: ['Syntax', 'Statements', 'C Basics'],
-    confidence: 98,
-    steps: [
-      'Reproduce the error → Compile the code.',
-      'Read the error message carefully.',
-      'Go to the indicated line.',
-      'Add the missing semicolon (;) at the end of the statement.',
-      'Recompile and verify.',
-    ],
-    fix: (code) => code.replace(/(\bint\s+\w+\s*=[^;{}\n]+)\n/g, '$1;\n')
-                       .replace(/(add\([^)]+\))\n/g, '$1;\n')
-                       .replace(/(printf\([^)]+\))\n/g, '$1;\n'),
-    suggestion: 'Add semicolons at the end of each statement.',
-  },
-  'undeclared_variable': {
-    label: 'Undeclared Variable',
-    explain: 'You are using a variable that has not been declared. In C, every variable must be declared with a type before use.',
-    concepts: ['Variables', 'Declarations', 'Scope'],
-    confidence: 95,
-    steps: [
-      'Find the variable name in the error message.',
-      'Check if you declared it with a type (e.g., int x;).',
-      'Make sure the declaration is in the correct scope.',
-      'Add the declaration before first use.',
-      'Recompile and verify.',
-    ],
-    fix: null,
-    suggestion: 'Declare all variables before using them.',
-  },
-  'missing_return': {
-    label: 'Missing Return',
-    explain: 'A function declared to return a value (like int main()) must have a return statement. Without it, the behavior is undefined.',
-    concepts: ['Functions', 'Return Values', 'main()'],
-    confidence: 92,
-    steps: [
-      'Identify the function missing a return.',
-      'Add return <value>; before the closing brace.',
-      'For main(), use return 0; to indicate success.',
-      'Recompile and verify.',
-    ],
-    fix: null,
-    suggestion: 'Add return 0; at the end of main().',
-  },
-};
-
-/* ── Detect errors in code ── */
-function detectErrors(code) {
-  const errors = [];
-  const lines = code.split('\n');
-
-  lines.forEach((line, i) => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('#') ||
-        trimmed.endsWith('{') || trimmed.endsWith('}') || trimmed === '') return;
-
-    const isStatement = /^(int|float|char|double|printf|scanf|return|[a-zA-Z_]\w*\s*[=(])/.test(trimmed);
-    const endsWithSemi = trimmed.endsWith(';');
-    const endsWithBrace = trimmed.endsWith('{') || trimmed.endsWith('}');
-
-    if (isStatement && !endsWithSemi && !endsWithBrace && trimmed !== '') {
-      errors.push({ line: i + 1, type: 'missing_semicolon', raw: line });
+/* ── Build console output ── */
+function buildConsoleOutput(errors, filename = 'main.c') {
+  let out = '';
+  errors.forEach(e => {
+    out += `<span class="c-red">${filename}:${e.line}:${e.col}: error: ${e.message}</span>\n`;
+    if (e.raw) {
+      out += `    ${e.line} |  ${e.raw.trim()}\n`;
+      out += `       |  <span class="c-red">${' '.repeat(e.col-1)}^</span>\n`;
     }
   });
-
-  return errors;
-}
-
-/* ── Build console error output ── */
-function buildConsoleOutput(errors, filename = 'main.c') {
-  if (!errors.length) return `<span class="c-green">Compilation successful.\nProgram output:\nSum: 30</span>`;
-  let out = `<span class="c-white">${filename}: In function 'main':</span>\n`;
-  errors.forEach(e => {
-    const db = errorDB[e.type];
-    out += `<span class="c-red">${filename}:${e.line}: error: expected ';' before next token</span>\n`;
-    out += `    ${e.line} |  ${e.raw.trim()}\n`;
-    out += `       |  ${' '.repeat(e.raw.trim().length)}^\n`;
-  });
-  out += `<span class="c-red">compilation terminated due to -Wfatal-errors.</span>`;
   return out;
 }
 
 /* ── Build diff view ── */
-function buildDiff(errors) {
+function buildDiff(error) {
   diffBefore.innerHTML = '';
   diffAfter.innerHTML = '';
-  if (!errors.length) return;
+  if (!error) return;
 
-  errors.slice(0, 4).forEach(e => {
-    const raw = e.raw.trim();
-    const fixed = raw.endsWith(';') ? raw : raw + ';';
+  const raw = error.raw.trim();
+  const rb = document.createElement('div');
+  rb.className = 'diff-line red-line';
+  rb.innerHTML = `<span class="ln">${error.line}</span><span>${raw}</span><span class="diff-mark red-mark">−</span>`;
+  diffBefore.appendChild(rb);
 
-    const rb = document.createElement('div');
-    rb.className = 'diff-line red-line';
-    rb.innerHTML = `<span class="ln">${e.line}</span><span>${raw}</span><span class="diff-mark red-mark">−</span>`;
-    diffBefore.appendChild(rb);
+  if (error.type === 'missing_semicolon') {
+    const fixed = raw + ';';
 
     const ra = document.createElement('div');
     ra.className = 'diff-line green-line';
     ra.innerHTML = `<span class="ln">${e.line}</span><span>${fixed}</span><span class="diff-mark green-mark">+</span>`;
     diffAfter.appendChild(ra);
-  });
+  } else {
+    diffAfter.innerHTML = '<div class="diff-header" style="padding:10px">Manual fix required</div>';
+  }
 }
 
 /* ── Update attempt dots ── */
@@ -196,11 +143,9 @@ function updateDots() {
 
 /* ── Update error pattern bars ── */
 function updatePatternBars() {
-  const entries = Object.entries(state.errorPattern).sort((a, b) => b[1] - a[1]);
-  const max = entries[0]?.[1] || 1;
-  patternBars.innerHTML = entries.map(([type, count]) => {
-    const db = errorDB[type];
-    const label = db ? db.label : type;
+  const entries = Object.entries(state.errorPattern);
+  const max = Math.max(...entries.map(e => e[1]), 1);
+  patternBars.innerHTML = entries.map(([label, count]) => {
     const pct = Math.round((count / max) * 100);
     return `<div class="pbar-row">
       <span class="pbar-label" title="${label}">${label}</span>
@@ -218,6 +163,15 @@ function updateRing(pct) {
   ringLabel.textContent = pct + '%';
 }
 
+/* ── Update Tracker ── */
+function updatePerformanceUI() {
+  perfTotal.textContent = state.totalRuns;
+  perfFixed.textContent = state.errorsFixed;
+  const score = (state.errorsFixed * 50) - (state.attempts * 5);
+  perfScore.textContent = Math.max(0, score) + ' pts';
+  document.getElementById('statScore').textContent = perfScore.textContent;
+}
+
 /* ── Set motivational message ── */
 function setMotive(type, msg) {
   motiveBanner.className = 'motivational-banner' + (type ? ' ' + type : '');
@@ -225,19 +179,31 @@ function setMotive(type, msg) {
 }
 
 /* ── Main run logic ── */
-function runCode(isTryFix = false) {
+async function runCode(isTryFix = false) {
   const code = editor.value;
-  const errors = detectErrors(code);
-  state.errors = errors;
-
+  state.totalRuns++;
   readyDot.classList.add('busy');
   readyText.textContent = 'Compiling...';
 
-  setTimeout(() => {
+  try {
+    const response = await fetch('http://localhost:5000/compile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await response.json();
+    const errors = data.errors || [];
+    state.errors = errors;
+
+    updatePerformanceUI();
+
     readyDot.classList.remove('busy');
     readyText.textContent = 'Ready';
 
-    consoleOut.innerHTML = buildConsoleOutput(errors);
+    // Display actual stdout from compiler or runtime
+    consoleOut.innerHTML = data.success ? 
+      `<span class="c-green">Execution Successful:</span>\n${data.stdout}` : 
+      (data.runtime_error ? `<span class="c-red">${data.runtime_error}</span>` : buildConsoleOutput(errors));
 
     if (!errors.length) {
       // SUCCESS
@@ -273,28 +239,32 @@ function runCode(isTryFix = false) {
       sbErrors.textContent = `⚠ ${errors.length} Error${errors.length > 1 ? 's' : ''}`;
       sbErrors.className = 'err-badge';
 
-      const primaryType = errors[0].type;
-      const db = errorDB[primaryType];
+      const errorData = errors[0];
+      const db = errorData.db;
 
-      // Track pattern
-      state.errorPattern[primaryType] = (state.errorPattern[primaryType] || 0) + 1;
+      // Setup hint system
+      resetHints(db);
+
+      // Track pattern by label
+      const label = db ? db.label : "General Error";
+      state.errorPattern[label] = (state.errorPattern[label] || 0) + 1;
       updatePatternBars();
 
-      // Error explanation
-      errorExplain.textContent = db.explain;
-      conceptTags.innerHTML = db.concepts.map(c => `<span class="concept-tag">${c}</span>`).join('');
+      // Error explanation from Backend DB
+      errorExplain.textContent = db ? db.explain : errorData.message;
+      conceptTags.innerHTML = db ? db.concepts.map(c => `<span class="concept-tag">${c}</span>`).join('') : '';
 
-      // Debug steps
-      debugSteps.innerHTML = db.steps.map(s => `<li>${s}</li>`).join('');
+      // Step-by-step logic from Backend
+      debugSteps.innerHTML = db ? db.steps.map(s => `<li>${s}</li>`).join('') : '<li>Check the line for syntax issues.</li>';
 
       // Diff
-      buildDiff(errors);
-      fixConf.textContent = `Confidence: ${db.confidence}%`;
+      buildDiff(errorData);
+      fixConf.textContent = db ? `Confidence: ${db.confidence}%` : 'Confidence: High';
 
       // Quick insights
-      qiCommon.textContent = db.label;
-      qiLast.textContent = `Line ${errors[0].line}: ${db.label}`;
-      qiSuggest.textContent = db.suggestion;
+      qiCommon.textContent = label;
+      qiLast.textContent = `Line ${errorData.line}: ${label}`;
+      qiSuggest.textContent = db ? db.suggestion : "Check for typos.";
 
       if (isTryFix) {
         state.attempts++;
@@ -323,21 +293,75 @@ function runCode(isTryFix = false) {
         setMotive('', `🧠 <strong>Errors detected!</strong> Read the explanation and try to fix them yourself. Auto-fix unlocks after ${state.maxAttempts} failed attempts.`);
       }
     }
-  }, 600);
+  } catch (err) {
+    consoleOut.innerHTML = `<span class="c-red">Connection Error: Ensure the Backend server is running.</span>`;
+    readyText.textContent = 'Error';
+  }
 }
+
+/* ── Interactive Hint Logic ── */
+function resetHints(db) {
+  hintText.textContent = "Stuck? Try a hint below.";
+  document.querySelectorAll('.hint-btn').forEach((btn, i) => {
+    btn.disabled = i > 0; // Only enable Hint 1
+    btn.classList.remove('active');
+    
+    // Clear previous listeners
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+
+    newBtn.addEventListener('click', () => {
+      if (!db || !db.hints[i]) return;
+      hintText.innerHTML = `<strong>Hint ${i+1}:</strong> ${db.hints[i]}`;
+      newBtn.classList.add('active');
+      
+      // Unlock next hint
+      const next = document.getElementById(`hintBtn${i+2}`);
+      if (next) next.disabled = false;
+    });
+  });
+}
+
+/* ── Logic Builder Generation ── */
+btnLbGenerate.addEventListener('click', () => {
+  const input = lbProblem.value.toLowerCase();
+  if (!input) return;
+
+  lbStepsArea.innerHTML = '<div class="c-white">Analyzing logic...</div>';
+  
+  // Mock conversion logic (in real world, this could call an LLM API)
+  const defaultSteps = [
+    "Identify your inputs (What data do you need?)",
+    "Declare variables with proper types (int, float, etc.)",
+    "Write the logic/calculation",
+    "Display the result using printf",
+    "Add 'return 0;' to signal success"
+  ];
+
+  setTimeout(() => {
+    lbStepsArea.innerHTML = defaultSteps.map((step, i) => `
+      <div class="lb-step">
+        <div class="lb-step-header">Step ${i+1}</div>
+        <div class="lb-step-text">${step}</div>
+      </div>
+    `).join('');
+  }, 600);
+});
 
 /* ── Apply Fix ── */
 btnApply.addEventListener('click', () => {
   if (btnApply.disabled) return;
-  const db = errorDB[state.errors[0]?.type];
-  if (!db?.fix) return;
-  editor.value = db.fix(editor.value);
-  updateLineNumbers();
-  state.errorsFixed++;
-  statFixed.textContent = `✔ ${state.errorsFixed}`;
-  runCode(false);
-  setMotive('success', '✦ <strong>Fix applied!</strong> Study the changes so you can fix it yourself next time.');
-  updateRing(Math.min(100, 75 + state.errorsFixed * 5));
+  // Logic to apply the suggested fix based on type
+  const err = state.errors[0];
+  if (err && err.type === 'missing_semicolon') {
+     const lines = editor.value.split('\n');
+     lines[err.line-1] = lines[err.line-1].trimEnd() + ';';
+     editor.value = lines.join('\n');
+     updateLineNumbers();
+     state.errorsFixed++;
+     runCode(false);
+     setMotive('success', '✦ <strong>Fix applied!</strong> Study the changes so you can fix it yourself next time.');
+  }
 });
 
 /* ── Run buttons ── */
