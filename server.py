@@ -1,11 +1,67 @@
 import subprocess, tempfile, os, re, json
+import sys
+import subprocess as sp
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+
+# Windows-specific: CreateNoWindow flag to prevent console window
+CREATE_NO_WINDOW = 0x08000000
+
+def run_gcc_compile(src, exe):
+    """Run GCC compilation with proper output capture on Windows"""
+    # Use list form for subprocess on Windows
+    cmd = [GCC_PATH, src, "-o", exe, "-Wall", "-Wextra", "-fmax-errors=10"]
+    
+    # Try with creationflags to hide console
+    try:
+        result = sp.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            creationflags=CREATE_NO_WINDOW,
+            cwd=os.path.dirname(GCC_PATH) if os.path.dirname(GCC_PATH) else None
+        )
+        return result
+    except FileNotFoundError:
+        raise RuntimeError(f"GCC not found at {GCC_PATH}. Please check the path in server.py.")
+    except Exception as e:
+        print(f"First attempt failed: {e}")
+        # Fallback: try without creationflags
+        result = sp.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+        return result
+
+def run_exe(exe):
+    """Run the compiled executable"""
+    try:
+        result = sp.run(
+            [exe],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            creationflags=CREATE_NO_WINDOW
+        )
+        return result
+    except Exception as e:
+        # Fallback
+        result = sp.run(
+            [exe],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        return result
 
 app = Flask(__name__)
 CORS(app)
 
-GCC_PATH = r"C:\msys64\ucrt64\bin\gcc.exe"
+# Ensure this path matches your local GCC installation
+GCC_PATH = r"C:\msys64\ucrt64\bin\gcc.exe" 
 
 ERROR_DB = {
     "missing_semicolon": {
@@ -120,6 +176,24 @@ ERROR_DB = {
         ],
         "suggestion": "Always check that the divisor is not zero before dividing."
     },
+    "missing_include": {
+        "label": "Missing Library Header",
+        "explain": "You are using a function (like printf) without telling the compiler where to find it. You need to include the standard library header at the top.",
+        "concepts": ["Headers", "Preprocessors", "Standard I/O"],
+        "confidence": 99,
+        "hints": [
+            "Check the very first line of your code.",
+            "Standard functions like printf need #include <stdio.h>.",
+            "Add #include <stdio.h> at the top of your file."
+        ],
+        "steps": [
+            "Identify the function causing the error.",
+            "Look up which library it belongs to.",
+            "Add the #include directive at the top.",
+            "Recompile."
+        ],
+        "suggestion": "Always include <stdio.h> for input/output functions."
+    },
     "infinite_loop": {
         "label": "Possible Infinite Loop",
         "explain": "Your loop condition never becomes false, so the loop runs forever. This usually happens when the loop variable is never updated inside the loop body.",
@@ -172,6 +246,8 @@ def classify_error(stderr_line):
         return "missing_return"
     if "incompatible type" in l or "cannot convert" in l or "assignment to" in l:
         return "type_mismatch"
+    if "include" in l or "stdio.h" in l:
+        return "missing_include"
     if "division by zero" in l:
         return "division_by_zero"
     if "array subscript" in l or "out of bounds" in l:
@@ -202,10 +278,19 @@ def parse_gcc_output(stderr, source_lines):
         })
     return errors
 
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({
+        "status": "Online",
+        "message": "CodeAid AI Backend is active.",
+        "endpoints": ["/compile (POST)", "/errordb (GET)"],
+        "gcc_path": GCC_PATH
+    })
+
 @app.route("/compile", methods=["POST"])
 def compile_code():
     data = request.get_json()
-    code = data.get("code", "")
+    code = data.get("code", "") if data else ""
     source_lines = code.splitlines()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -214,29 +299,29 @@ def compile_code():
         with open(src, "w", encoding="utf-8") as f:
             f.write(code)
 
-        # Compile
-        compile_result = subprocess.run(
-            [GCC_PATH, src, "-o", exe, "-Wall", "-Wextra", "-fmax-errors=10"],
-            capture_output=True, text=True, timeout=15
-        )
-
+        # Run GCC using our robust helper
+        try:
+            compile_result = run_gcc_compile(src, exe)
+        except RuntimeError as e:
+            return jsonify({"success": False, "errors": [], "stderr": str(e), "stdout": "", "runtime_error": str(e)}), 500
+        
         errors = parse_gcc_output(compile_result.stderr, source_lines)
         program_output = ""
         runtime_error = ""
 
         if compile_result.returncode == 0:
-            # Run the compiled program
+            # Run the compiled program using our helper
             try:
-                run_result = subprocess.run(
-                    [exe],
-                    capture_output=True, text=True, timeout=5,
-                    input=""
-                )
+                run_result = run_exe(exe)
                 program_output = run_result.stdout
+                
                 if run_result.returncode != 0:
-                    runtime_error = run_result.stderr or f"Program exited with code {run_result.returncode}"
+                    # Check if it crashed (segmentation fault etc)
+                    runtime_error = run_result.stderr if run_result.stderr else f"Runtime Error (Exit Code {run_result.returncode})"
+                    if "out of bounds" in runtime_error.lower():
+                        errors.append({"line": 0, "col": 0, "severity": "error", "message": "Memory access error: Array out of bounds.", "type": "array_out_of_bounds"})
+            
             except subprocess.TimeoutExpired:
-                runtime_error = "Runtime Error: Program timed out (possible infinite loop)."
                 errors.append({
                     "line": 0, "col": 0, "severity": "error",
                     "message": "Program timed out — possible infinite loop.",
@@ -262,9 +347,11 @@ def get_error_db():
     return jsonify(ERROR_DB)
 
 if __name__ == "__main__":
+    import sys
     print("=" * 50)
     print("  CodeAid AI — Backend Server")
     print("  GCC:", GCC_PATH)
     print("  Running at: http://localhost:5000")
     print("=" * 50)
-    app.run(debug=False, port=5000)
+    # Enable verbose output
+    app.run(debug=True, port=5000, use_reloader=False)

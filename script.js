@@ -14,6 +14,7 @@ defs.appendChild(grad); svgEl.insertBefore(defs, svgEl.firstChild);
 
 /* ── State ── */
 const state = {
+  errorDB: {}, // Loaded from server
   errors: [], // Now populated from the backend
   totalRuns: 0,
   attempts: 0,
@@ -21,6 +22,8 @@ const state = {
   fixUnlocked: false,
   errorsFixed: 0,
   errorPattern: {},   // { errorType: count }
+  history: [],
+  streak: 0,
   debugMode: false,
 };
 
@@ -65,6 +68,8 @@ const patternBars  = document.getElementById('patternBars');
 const perfTotal    = document.getElementById('perfTotal');
 const perfFixed    = document.getElementById('perfFixed');
 const perfScore    = document.getElementById('perfScore');
+const weakTopics   = document.getElementById('weakTopics');
+const personalFeedback = document.getElementById('personalFeedback');
 const perfStreak   = document.getElementById('perfStreak');
 const chatBody     = document.getElementById('chatBody');
 const chatInput    = document.getElementById('chatInput');
@@ -125,7 +130,7 @@ function buildDiff(error) {
 
     const ra = document.createElement('div');
     ra.className = 'diff-line green-line';
-    ra.innerHTML = `<span class="ln">${e.line}</span><span>${fixed}</span><span class="diff-mark green-mark">+</span>`;
+    ra.innerHTML = `<span class="ln">${error.line}</span><span>${fixed}</span><span class="diff-mark green-mark">+</span>`;
     diffAfter.appendChild(ra);
   } else {
     diffAfter.innerHTML = '<div class="diff-header" style="padding:10px">Manual fix required</div>';
@@ -155,21 +160,36 @@ function updatePatternBars() {
   }).join('');
 }
 
+/* ── Update Tracker ── */
+function updatePerformanceUI() {
+  perfTotal.textContent = state.totalRuns;
+  perfFixed.textContent = state.errorsFixed;
+  perfStreak.textContent = state.streak;
+  const score = (state.errorsFixed * 50) - (state.attempts * 5);
+  const finalScore = Math.max(0, score);
+  perfScore.textContent = finalScore + ' pts';
+  document.getElementById('statScore').textContent = finalScore + ' pts';
+
+  // Weak Topics Logic
+  const topics = Object.entries(state.errorPattern)
+    .filter(([_, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1]);
+  
+  weakTopics.innerHTML = topics.length 
+    ? topics.map(([topic]) => `<div class="concept-tag" style="background:rgba(248,81,73,0.1); border-color:rgba(248,81,73,0.3); color:var(--red)">${topic}</div>`).join('')
+    : '<div class="rcard-text">Keep coding to analyze weak areas!</div>';
+
+  if (topics.length > 0) {
+    personalFeedback.textContent = `You've encountered "${topics[0][0]}" several times. Consider reviewing the concepts in your textbooks or asking the AI for a deep dive!`;
+  }
+}
+
 /* ── Update progress ring ── */
 function updateRing(pct) {
   const circumference = 138.2;
   const offset = circumference - (pct / 100) * circumference;
   ringFill.setAttribute('stroke-dashoffset', offset.toFixed(1));
   ringLabel.textContent = pct + '%';
-}
-
-/* ── Update Tracker ── */
-function updatePerformanceUI() {
-  perfTotal.textContent = state.totalRuns;
-  perfFixed.textContent = state.errorsFixed;
-  const score = (state.errorsFixed * 50) - (state.attempts * 5);
-  perfScore.textContent = Math.max(0, score) + ' pts';
-  document.getElementById('statScore').textContent = perfScore.textContent;
 }
 
 /* ── Set motivational message ── */
@@ -203,17 +223,19 @@ async function runCode(isTryFix = false) {
     // Display actual stdout from compiler or runtime
     consoleOut.innerHTML = data.success ? 
       `<span class="c-green">Execution Successful:</span>\n${data.stdout}` : 
-      (data.runtime_error ? `<span class="c-red">${data.runtime_error}</span>` : buildConsoleOutput(errors));
+      (data.runtime_error ? `<span class="c-red">⚠️ Runtime Error:</span>\n${data.runtime_error}\n` + buildConsoleOutput(errors) : buildConsoleOutput(errors));
 
     if (!errors.length) {
       // SUCCESS
       statStatus.textContent = '✔ Success';
+      statStatus.style.color = 'var(--green)';
       statStatus.className = 'stat-val green';
       sbErrors.textContent = '✔ 0 Errors';
       sbErrors.className = 'err-badge ok';
 
       if (isTryFix) {
         state.errorsFixed++;
+        state.streak++;
         statFixed.textContent = `✔ ${state.errorsFixed}`;
         dots[Math.min(state.attempts, 2)].className = 'adot pass';
         setMotive('success', '🎉 <strong>Excellent!</strong> You fixed it yourself! Great job — you\'re learning fast!');
@@ -238,6 +260,7 @@ async function runCode(isTryFix = false) {
       statStatus.className = 'stat-val red';
       sbErrors.textContent = `⚠ ${errors.length} Error${errors.length > 1 ? 's' : ''}`;
       sbErrors.className = 'err-badge';
+      state.streak = 0;
 
       const errorData = errors[0];
       const db = errorData.db;
@@ -301,24 +324,20 @@ async function runCode(isTryFix = false) {
 
 /* ── Interactive Hint Logic ── */
 function resetHints(db) {
-  hintText.textContent = "Stuck? Try a hint below.";
+  hintText.innerHTML = '<span style="color:var(--text-dim)">Stuck? Click Hint 1 to start.</span>';
   document.querySelectorAll('.hint-btn').forEach((btn, i) => {
     btn.disabled = i > 0; // Only enable Hint 1
     btn.classList.remove('active');
     
-    // Clear previous listeners
-    const newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
-
-    newBtn.addEventListener('click', () => {
+    btn.onclick = () => {
       if (!db || !db.hints[i]) return;
       hintText.innerHTML = `<strong>Hint ${i+1}:</strong> ${db.hints[i]}`;
-      newBtn.classList.add('active');
+      btn.classList.add('active');
       
       // Unlock next hint
       const next = document.getElementById(`hintBtn${i+2}`);
       if (next) next.disabled = false;
-    });
+    };
   });
 }
 
@@ -327,24 +346,53 @@ btnLbGenerate.addEventListener('click', () => {
   const input = lbProblem.value.toLowerCase();
   if (!input) return;
 
-  lbStepsArea.innerHTML = '<div class="c-white">Analyzing logic...</div>';
+  lbStepsArea.innerHTML = '<div class="c-white" style="padding:20px">✨ AI is breaking down your problem into logical steps...</div>';
   
-  // Mock conversion logic (in real world, this could call an LLM API)
-  const defaultSteps = [
-    "Identify your inputs (What data do you need?)",
-    "Declare variables with proper types (int, float, etc.)",
-    "Write the logic/calculation",
-    "Display the result using printf",
-    "Add 'return 0;' to signal success"
+  // Simplified NLP Logic Breakdown
+  let steps = [
+    "Step 1: Include Standard I/O library (#include <stdio.h>)",
+    "Step 2: Start your main function: int main() { ... }"
   ];
 
+  if (input.includes("sum") || input.includes("add")) {
+    steps.push("Step 3: 📋 Declare variables to hold your numbers (e.g., int num1, num2, sum;)");
+    steps.push("Step 4: 📥 Get input from the user using scanf() or assign values directly.");
+    steps.push("Step 5: ➕ Perform the addition logic: sum = num1 + num2;");
+    steps.push("Step 6: 📤 Display the result using printf() with the %d format specifier.");
+  } else if (input.includes("loop") || input.includes("print 1 to")) {
+    steps.push("Step 3: 🔢 Declare a counter variable (e.g., int i;)");
+    steps.push("Step 4: 🔄 Set up a loop (like for or while) with a start, condition, and increment.");
+    steps.push("Step 5: 📝 Inside the loop body, write the printf() statement to print the current number.");
+  } else if (input.includes("even") || input.includes("odd")) {
+    steps.push("Step 3: 📥 Get a number from the user.");
+    steps.push("Step 4: ⚖️ Use the modulo operator (%) to check the remainder when divided by 2.");
+    steps.push("Step 5: 🛣️ Use an if-else statement: if(n % 2 == 0) for even, else for odd.");
+    steps.push("Step 6: 📤 Print the appropriate message.");
+  } else if (input.includes("average") || input.includes("mean")) {
+    steps.push("Step 3: 🔢 Declare float variables for decimal precision (e.g., float a, b, avg;)");
+    steps.push("Step 4: 📥 Input the numbers.");
+    steps.push("Step 5: ➕ Sum the numbers and divide by the count (e.g., avg = (a + b) / 2.0;)");
+    steps.push("Step 6: 📤 Output the average using %.2f to show two decimal places.");
+  } else {
+    steps.push("Step 3: Identify the main action (Calculation or Input).");
+    steps.push("Step 4: Use conditional statements (if/else) if decisions are needed.");
+    steps.push("Step 5: Use printf() to output your final result.");
+  }
+  steps.push("Step 6: Return 0 and close your braces.");
+
   setTimeout(() => {
-    lbStepsArea.innerHTML = defaultSteps.map((step, i) => `
+    lbStepsArea.innerHTML = steps.map((step, i) => `
       <div class="lb-step">
-        <div class="lb-step-header">Step ${i+1}</div>
         <div class="lb-step-text">${step}</div>
+        <div class="lb-step-check">○</div>
       </div>
     `).join('');
+    
+    // Make steps interactive
+    document.querySelectorAll('.lb-step').forEach(s => s.onclick = () => {
+      s.classList.toggle('completed');
+      s.querySelector('.lb-step-check').textContent = s.classList.contains('completed') ? '●' : '○';
+    });
   }, 600);
 });
 
@@ -367,6 +415,7 @@ btnApply.addEventListener('click', () => {
 /* ── Run buttons ── */
 btnRun.addEventListener('click', () => runCode(false));
 document.getElementById('actionRun').addEventListener('click', () => runCode(false));
+document.getElementById('actionDebug').addEventListener('click', () => btnDebugMode.click());
 btnTryRun.addEventListener('click', () => runCode(true));
 
 /* ── Debug mode toggle ── */
@@ -425,18 +474,31 @@ document.querySelectorAll('.sidebar-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+    
+    const target = btn.dataset.panel;
+    const panelId = 'panel' + target.charAt(0).toUpperCase() + target.slice(1);
+    const targetPanel = document.getElementById(panelId);
+
+    if (targetPanel) {
+    document.querySelectorAll('.panel-view').forEach(panel => {
+      panel.classList.remove('active');
+    });
+      targetPanel.classList.add('active');
+    } else {
+      console.warn(`Panel ${panelId} not found in HTML.`);
+    }
   });
 });
 
 /* ── AI Chat ── */
 const aiResponses = {
   why: () => {
-    const db = state.errors[0] ? errorDB[state.errors[0].type] : null;
+    const db = state.errors[0]?.db;
     return db ? `You're getting this error because: ${db.explain}` : 'Run your code first so I can analyze the errors!';
   },
   explain: () => 'This code defines an add() function that returns the sum of two integers, then calls it from main() and prints the result.',
   fix: () => {
-    const db = state.errors[0] ? errorDB[state.errors[0].type] : null;
+    const db = state.errors[0]?.db;
     return db ? `To fix this: ${db.steps.join(' → ')}` : 'No errors detected! Your code looks good.';
   },
 };
@@ -482,9 +544,20 @@ function sendChat() {
   setTimeout(() => addChatMsg(reply), 450);
 }
 
+document.getElementById('btnCloseChat').addEventListener('click', () => {
+  document.querySelector('.ai-chat-box').style.display = 'none';
+});
+
 document.getElementById('actionAsk').addEventListener('click', () => {
+  document.querySelector('.ai-chat-box').style.display = 'flex';
   chatInput.focus();
 });
 
 /* ── Initial state ── */
-runCode(false);
+// Fetch initial ErrorDB from server to sync AI Chat
+fetch('http://localhost:5000/errordb')
+  .then(res => res.json())
+  .then(data => { state.errorDB = data; })
+  .catch(() => console.log("Offline mode: Using local logic."));
+
+updateLineNumbers();
