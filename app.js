@@ -1,4 +1,4 @@
-const API_URL = 'http://127.0.0.1:5000/api';
+const API_URL = window.location.origin + '/api';
 
 // DOM Elements
 const navEditorBtn = document.getElementById('nav-editor');
@@ -62,20 +62,21 @@ runBtn.addEventListener('click', async () => {
             consoleOutput.textContent = data.output || 'Program finished successfully with no output.';
             addTutorMessage("Great job! Your code compiled and ran successfully.", "success");
         } else {
-            // Handle Error
+            // Handle Error - SHOW RAW ERROR FIRST
             consoleOutput.textContent = data.raw_error;
             consoleOutput.classList.add('error-text');
             
+            // Always show raw error prominently
+            addTutorMessage(`❌ ERROR DETECTED:\n${data.raw_error}`, "error");
+            
             if (data.analysis && data.analysis.matched) {
-                // Rule matched!
-                addTutorMessage(`Oops! I found an issue. ${data.analysis.simplification}`, "error");
+                // If we have a simplified explanation, show it after the raw error
+                addTutorMessage(`\n✨ SIMPLIFIED EXPLANATION:\n${data.analysis.simplification}`, "info");
                 currentHints = data.analysis.hints;
                 
                 if (currentHints.length > 0) {
                     tutorActions.style.display = 'flex';
                 }
-            } else {
-                addTutorMessage("Oops! There is an error, but I'm not exactly sure what it means. Check the raw compiler output below.", "error");
             }
         }
     } catch (error) {
@@ -103,8 +104,15 @@ nextHintBtn.addEventListener('click', () => {
 
 function addTutorMessage(text, type = "normal") {
     const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${type === "error" ? "error-msg" : "tutor-msg"}`;
-    msgDiv.textContent = text;
+    const typeClass = type === "error" ? "error-msg" : type === "info" ? "info-msg" : type === "success" ? "success-msg" : "tutor-msg";
+    msgDiv.className = `message ${typeClass}`;
+    // Preserve newlines and convert them to <br> tags, escape HTML
+    msgDiv.innerHTML = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>')
+        .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
     tutorChat.appendChild(msgDiv);
     tutorChat.scrollTop = tutorChat.scrollHeight;
 }

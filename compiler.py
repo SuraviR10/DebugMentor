@@ -2,84 +2,48 @@ import subprocess
 import os
 import tempfile
 
-def compile_and_run(code: str) -> dict:
-    """
-    Compiles and runs C code using GCC.
-    Returns a dictionary with status, output, and error.
-    """
-    # Create temporary files for the C code and the executable
-    with tempfile.TemporaryDirectory() as temp_dir:
-        c_file_path = os.path.join(temp_dir, 'program.c')
-        exe_file_path = os.path.join(temp_dir, 'program.exe')
+GCC = r"C:\msys64\ucrt64\bin\gcc.exe"
 
-        with open(c_file_path, 'w') as f:
+def compile_and_run(code: str) -> dict:
+    with tempfile.TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, "program.c")
+        exe = os.path.join(tmp, "program.exe")
+
+        with open(src, "w", encoding="utf-8") as f:
             f.write(code)
 
-        # 1. Compilation Step
-        try:
-            compile_process = subprocess.run(
-                ['gcc', c_file_path, '-o', exe_file_path],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            if compile_process.returncode != 0:
-                # Compilation failed
-                return {
-                    'status': 'error',
-                    'type': 'compilation',
-                    'stderr': compile_process.stderr
-                }
-        except subprocess.TimeoutExpired:
+        # Compile
+        compile_proc = subprocess.run(
+            [GCC, src, "-o", exe, "-Wall", "-fdiagnostics-color=never", "-fmax-errors=10"],
+            capture_output=True, text=True, timeout=15
+        )
+
+        if compile_proc.returncode != 0:
             return {
-                'status': 'error',
-                'type': 'timeout',
-                'stderr': 'Compilation timed out.'
-            }
-        except Exception as e:
-            return {
-                'status': 'error',
-                'type': 'system',
-                'stderr': str(e)
+                "status": "error",
+                "type": "compilation",
+                "stderr": compile_proc.stderr
             }
 
-        # 2. Execution Step
+        # Run
         try:
-            # Run the compiled executable
-            run_process = subprocess.run(
-                [exe_file_path],
-                capture_output=True,
-                text=True,
-                timeout=5  # Prevent infinite loops
+            run_proc = subprocess.run(
+                [exe], capture_output=True, text=True, timeout=5, input=""
             )
-            
-            if run_process.returncode != 0:
-                stderr_output = run_process.stderr
-                if not stderr_output:
-                    stderr_output = f"Runtime Error Code: {run_process.returncode} ({hex(run_process.returncode & 0xFFFFFFFF)})"
-                
+            if run_proc.returncode != 0:
                 return {
-                    'status': 'error',
-                    'type': 'runtime',
-                    'stderr': stderr_output,
-                    'stdout': run_process.stdout
+                    "status": "error",
+                    "type": "runtime",
+                    "stderr": run_proc.stderr or f"Program exited with code {run_proc.returncode}",
+                    "stdout": run_proc.stdout
                 }
-            
             return {
-                'status': 'success',
-                'stdout': run_process.stdout
+                "status": "success",
+                "stdout": run_proc.stdout
             }
-            
         except subprocess.TimeoutExpired:
             return {
-                'status': 'error',
-                'type': 'runtime_timeout',
-                'stderr': 'Execution timed out. Do you have an infinite loop?'
-            }
-        except Exception as e:
-            return {
-                'status': 'error',
-                'type': 'system',
-                'stderr': str(e)
+                "status": "error",
+                "type": "timeout",
+                "stderr": "Execution timed out after 5 seconds. You might have an infinite loop!"
             }

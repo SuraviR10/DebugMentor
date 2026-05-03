@@ -193,6 +193,22 @@ nav button.active {
     font-weight: 500;
 }
 
+.info-msg {
+    align-self: flex-start;
+    background-color: #dbeafe;
+    color: #0c4a6e;
+    border-bottom-left-radius: 0;
+    font-weight: 500;
+}
+
+.success-msg {
+    align-self: flex-start;
+    background-color: #dcfce7;
+    color: #166534;
+    border-bottom-left-radius: 0;
+    font-weight: 500;
+}
+
 .tutor-actions {
     padding: 1rem;
     border-top: 1px solid var(--border-color);

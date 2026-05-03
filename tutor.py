@@ -96,6 +96,20 @@ def analyze_error(stderr: str) -> dict:
             ]
         }
 
+    # Handle generic exit codes with no message
+    if "exited with error code" in stderr and "No error message" in stderr:
+        return {
+            "matched": True,
+            "concept": "Runtime / Unknown",
+            "simplification": "Your program exited with an error, but no details were provided.",
+            "hints": [
+                "Check if your program has any printf() or scanf() statements.",
+                "Try running a simpler version of your code to isolate the problem.",
+                "Look for potential issues: uninitialized variables, incorrect array access, or logic errors.",
+                "Add debug print statements (printf) to see where your program fails."
+            ]
+        }
+
     for rule in error_rules:
         if re.search(rule["pattern"], stderr):
             # Try to extract the line number if possible (format: program.c:LINE:COL: error: ...)

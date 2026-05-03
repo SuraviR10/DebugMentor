@@ -1,87 +1,400 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intelligent Programming Learning Assistant</title>
-    <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CodeAid AI — Programming Learning System</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet"/>
 </head>
 <body>
-    <header class="app-header">
-        <div class="logo">
-            <h1>🧑‍🏫 CodeTutor</h1>
-            <p>Intelligent Programming Learning Assistant</p>
-        </div>
-        <nav>
-            <button id="nav-editor" class="active">Editor</button>
-            <button id="nav-dashboard">Dashboard</button>
-        </nav>
-    </header>
+<div class="app">
 
-    <main id="view-editor" class="view active-view">
-        <div class="left-pane">
-            <div class="pane-header">
-                <h2>C Code Editor</h2>
-                <button id="run-btn" class="primary-btn">▶ Run Code</button>
-            </div>
-            <textarea id="code-editor" spellcheck="false">#include <stdio.h>
+  <!-- ══ LEFT SIDEBAR ══ -->
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-icon">&lt;/&gt;</div>
+      <div class="sb-logo-text">
+        <div class="sb-logo-name">CodeAid AI</div>
+        <div class="sb-logo-sub">Your AI Coding Assistant</div>
+      </div>
+    </div>
 
-int main() {
-    printf("Hello, World!\n")
-    return 0;
-}</textarea>
-        </div>
-        <div class="right-pane">
-            <div class="tutor-section">
-                <div class="pane-header">
-                    <h2>🤖 Virtual Tutor</h2>
-                </div>
-                <div class="tutor-chat" id="tutor-chat">
-                    <div class="message tutor-msg">
-                        Hi! I'm your virtual coding tutor. Write your C code on the left and click "Run Code". If there are errors, I won't just give you the answer—I'll help you figure it out step-by-step!
-                    </div>
-                </div>
-                <div class="tutor-actions" id="tutor-actions" style="display: none;">
-                    <button id="next-hint-btn" class="secondary-btn">💡 Give me a hint</button>
-                </div>
-            </div>
-            <div class="output-section">
-                <div class="pane-header">
-                    <h2>Console Output</h2>
-                </div>
-                <pre id="console-output" class="console">Ready...</pre>
-            </div>
-        </div>
-    </main>
+    <nav class="sb-nav">
+      <a class="sb-link active" href="#"><span>🏠</span> Dashboard</a>
+      <a class="sb-link" href="#"><span>📋</span> Problem Set</a>
+      <a class="sb-link" href="#"><span>✏️</span> Code Editor</a>
+      <a class="sb-link" href="#"><span>📤</span> Submissions</a>
+      <a class="sb-link" href="#"><span>🤖</span> AI Tutor</a>
+      <a class="sb-link" href="#"><span>📖</span> Concepts</a>
+      <a class="sb-link" href="#"><span>🔖</span> Bookmarks</a>
+      <a class="sb-link" href="#"><span>🕐</span> History</a>
+      <a class="sb-link" href="#"><span>⚙️</span> Settings</a>
+    </nav>
 
-    <main id="view-dashboard" class="view" style="display: none;">
-        <div class="dashboard-container">
-            <h2>Your Learning Dashboard</h2>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <h3>Total Attempts</h3>
-                    <p id="stat-total">0</p>
-                </div>
-                <div class="stat-card">
-                    <h3>Successful Runs</h3>
-                    <p id="stat-success">0</p>
-                </div>
-                <div class="stat-card">
-                    <h3>Error Runs</h3>
-                    <p id="stat-errors">0</p>
-                </div>
-            </div>
-            
-            <div class="weak-topics">
-                <h2>Areas to Improve</h2>
-                <ul id="weak-concepts-list">
-                    <li>No data yet. Keep coding!</li>
-                </ul>
-            </div>
-        </div>
-    </main>
+    <div class="sb-ai-box">
+      <div class="sb-ai-avatar">🤖</div>
+      <div class="sb-ai-text">Need help?<br><strong>Ask CodeAid AI</strong></div>
+      <button class="btn-chat-now" id="btnChatNow">Chat Now →</button>
+    </div>
 
-    <script src="app.js"></script>
+    <div class="sb-footer">
+      <label class="dark-toggle">
+        <span>🌙 Dark Mode</span>
+        <div class="toggle-track">
+          <input type="checkbox" id="darkToggle"/>
+          <span class="toggle-thumb"></span>
+        </div>
+      </label>
+    </div>
+  </aside>
+
+  <!-- ══ CENTER MAIN ══ -->
+  <main class="center-main">
+
+    <!-- TOP OUTPUT BAR -->
+    <div class="top-bar">
+      <div class="tb-compile">
+        <div class="tb-compile-label" id="tbLabel">
+          <span id="tbIcon">📋</span>
+          <span id="tbTitle">Compile Output</span>
+        </div>
+        <div class="tb-compile-status" id="tbStatus">Waiting for code...</div>
+        <div class="tb-compile-detail" id="tbDetail">No errors found</div>
+      </div>
+      <div class="tb-divider"></div>
+      <div class="tb-output">
+        <div class="tb-output-label"><span>▶</span> Program Output</div>
+        <pre class="tb-output-pre" id="tbOutput">Run your code to see output here...</pre>
+      </div>
+      <div class="tb-buttons">
+        <button class="btn-run" id="btnRun">▶ Run Code</button>
+        <button class="btn-clear" id="btnClear">🗑 Clear</button>
+      </div>
+    </div>
+
+    <!-- EDITOR + ANALYSIS -->
+    <div class="editor-row">
+
+      <!-- CODE EDITOR -->
+      <div class="editor-panel">
+        <div class="editor-topbar">
+          <div class="editor-tab active">
+            <span class="tab-lang">C</span>
+            <span class="tab-name">main.c</span>
+            <span class="tab-close">×</span>
+          </div>
+          <button class="tab-add">+</button>
+          <div class="editor-topbar-right">
+            <select class="lang-drop"><option>C (GCC)</option></select>
+            <button class="btn-editor-sm" id="btnTheme">🌙</button>
+            <button class="btn-editor-sm">⚙️</button>
+          </div>
+        </div>
+        <div class="editor-body">
+          <div class="line-nums" id="lineNums"></div>
+          <textarea id="codeEditor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+        </div>
+        <div class="editor-footer">
+          <span id="cursorInfo">Ln 1, Col 1</span>
+          <span>Spaces: 4</span>
+          <span>UTF-8</span>
+          <span>LF</span>
+          <span>C</span>
+          <span class="ef-right">
+            <span class="ef-dot" id="efDot"></span>
+            <span id="efStatus">Auto-save</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- ANALYSIS PANEL -->
+      <div class="analysis-panel" id="analysisPanel">
+
+        <!-- IDLE -->
+        <div class="ap-view" id="apIdle">
+          <div class="ap-idle">
+            <div class="ap-idle-icon">💻</div>
+            <div class="ap-idle-title">Ready to Compile</div>
+            <div class="ap-idle-sub">Write your C code and press <strong>▶ Run Code</strong> to begin.</div>
+            <div class="flow-steps">
+              <span class="fs">Write</span><span class="fa">→</span>
+              <span class="fs">Compile</span><span class="fa">→</span>
+              <span class="fs">Detect</span><span class="fa">→</span>
+              <span class="fs">Feedback</span><span class="fa">→</span>
+              <span class="fs">Fix</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- COMPILING -->
+        <div class="ap-view hidden" id="apCompiling">
+          <div class="ap-compiling">
+            <div class="gear-anim">⚙️</div>
+            <div class="compiling-title">GCC is compiling your code...</div>
+            <div class="compile-bar-wrap"><div class="compile-bar" id="compileBar"></div></div>
+            <div class="compiling-cmd">gcc main.c -o main.exe -Wall</div>
+          </div>
+        </div>
+
+        <!-- SUCCESS -->
+        <div class="ap-view hidden" id="apSuccess">
+          <div class="success-banner">
+            <span class="success-icon">✅</span>
+            <div>
+              <div class="success-title">Compilation Successful!</div>
+              <div class="success-sub">No errors. Program ran successfully.</div>
+            </div>
+          </div>
+          <div class="success-out">
+            <div class="success-out-hdr">▶ Program Output</div>
+            <pre class="success-out-pre" id="successOut"></pre>
+          </div>
+          <div class="success-btns">
+            <button class="btn-run-again" id="btnRunAgain">▶ Run Again</button>
+            <button class="btn-logic" id="btnLogic">🧠 Logic Builder</button>
+          </div>
+        </div>
+
+        <!-- ERROR -->
+        <div class="ap-view hidden" id="apError">
+
+          <!-- Error Explanation -->
+          <div class="apc error-apc">
+            <div class="apc-hdr error-hdr">
+              <span>⚠️</span><span class="apc-title">Error Explanation</span>
+              <span class="err-badge" id="errBadge">1 error</span>
+            </div>
+            <div class="apc-body">
+              <div class="err-main" id="errMain">—</div>
+              <div class="err-simple" id="errSimple">—</div>
+              <div class="gcc-box">
+                <div class="gcc-box-lbl">GCC says:</div>
+                <pre class="gcc-box-pre" id="gccPre"></pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hints -->
+          <div class="apc hints-apc">
+            <div class="apc-hdr hints-hdr">
+              <span>💡</span><span class="apc-title">Hints</span>
+            </div>
+            <div class="apc-body">
+              <ul class="hints-ul" id="hintsUl"></ul>
+              <div class="hint-btns">
+                <button class="hbtn active" id="hb1">Hint 1</button>
+                <button class="hbtn" id="hb2" disabled>Hint 2</button>
+                <button class="hbtn" id="hb3" disabled>Hint 3</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step-by-Step Guidance -->
+          <div class="apc steps-apc">
+            <div class="apc-hdr steps-hdr">
+              <span>📋</span><span class="apc-title">Step-by-Step Guidance</span>
+            </div>
+            <div class="apc-body">
+              <ol class="steps-ol" id="stepsOl"></ol>
+            </div>
+          </div>
+
+          <!-- Concepts -->
+          <div class="apc concepts-apc">
+            <div class="apc-hdr concepts-hdr">
+              <span>📖</span><span class="apc-title">Concepts</span>
+            </div>
+            <div class="apc-body">
+              <div class="concept-tags" id="conceptTags"></div>
+            </div>
+          </div>
+
+          <!-- Try It Yourself -->
+          <div class="apc try-apc">
+            <div class="apc-hdr try-hdr">
+              <span>🎯</span><span class="apc-title">Try It Yourself</span>
+              <span class="attempt-lbl" id="attemptLbl">0 / 3</span>
+            </div>
+            <div class="apc-body">
+              <p class="try-desc">Fix the error in the editor, then click <strong>Try My Fix</strong>. Auto-fix unlocks after 3 failed attempts.</p>
+              <div class="adots">
+                <span class="adot" id="dot1"></span>
+                <span class="adot" id="dot2"></span>
+                <span class="adot" id="dot3"></span>
+              </div>
+              <button class="btn-try" id="btnTryFix">▶ Try My Fix</button>
+              <div class="try-msg" id="tryMsg"></div>
+            </div>
+          </div>
+
+          <!-- Corrected Code -->
+          <div class="apc fix-apc">
+            <div class="apc-hdr fix-hdr">
+              <span>✅</span><span class="apc-title">Corrected Code</span>
+              <span class="lock-lbl" id="lockLbl">🔒 Locked</span>
+            </div>
+            <div class="apc-body">
+              <div class="diff-grid">
+                <div class="diff-col">
+                  <div class="diff-col-hdr red-dh">❌ Before</div>
+                  <div id="diffBefore"></div>
+                </div>
+                <div class="diff-col">
+                  <div class="diff-col-hdr green-dh">✅ After</div>
+                  <div id="diffAfter"></div>
+                </div>
+              </div>
+              <button class="btn-apply" id="btnApply" disabled>🔒 Fix Locked — Try First!</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- RUNTIME ERROR -->
+        <div class="ap-view hidden" id="apRuntime">
+          <div class="apc error-apc">
+            <div class="apc-hdr error-hdr"><span>💥</span><span class="apc-title">Runtime Error</span></div>
+            <div class="apc-body">
+              <div class="err-main">Your code compiled but crashed during execution.</div>
+              <pre class="gcc-box-pre" id="runtimePre"></pre>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- ══ RIGHT SIDEBAR ══ -->
+  <aside class="right-sb">
+
+    <!-- Student Info -->
+    <div class="rs-student">
+      <div class="rs-avatar">👨💻</div>
+      <div class="rs-student-info">
+        <div class="rs-name">Hello, Student! 👋</div>
+        <div class="rs-role">Computer Science Student</div>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="rs-card">
+      <div class="rs-card-title">Your Progress</div>
+      <div class="prog-bar-outer">
+        <div class="prog-bar-inner" id="progBar" style="width:0%"></div>
+      </div>
+      <div class="prog-xp">
+        <span><span id="xpVal">0</span> / 1000 XP</span>
+        <span class="streak-chip" id="streakChip">🔥 0 Day Streak</span>
+      </div>
+    </div>
+
+    <!-- Performance Overview -->
+    <div class="rs-card">
+      <div class="rs-card-title">Performance Overview</div>
+      <div class="perf-row">
+        <div class="donut-wrap">
+          <svg viewBox="0 0 100 100" class="donut-svg">
+            <circle class="d-track" cx="50" cy="50" r="36"/>
+            <circle class="d-correct" id="dCorrect" cx="50" cy="50" r="36"
+              stroke-dasharray="0 226.2" stroke-dashoffset="-56.55"/>
+            <circle class="d-wrong" id="dWrong" cx="50" cy="50" r="36"
+              stroke-dasharray="0 226.2" stroke-dashoffset="-56.55"/>
+          </svg>
+          <div class="donut-center">
+            <div class="donut-pct" id="donutPct">0%</div>
+            <div class="donut-lbl">Overall Score</div>
+          </div>
+        </div>
+        <div class="donut-legend">
+          <div class="dl-row"><span class="dl-dot" style="background:#22c55e"></span>Correct <strong id="lgCorrect">0</strong></div>
+          <div class="dl-row"><span class="dl-dot" style="background:#ef4444"></span>Incorrect <strong id="lgIncorrect">0</strong></div>
+          <div class="dl-row"><span class="dl-dot" style="background:#94a3b8"></span>Skipped <strong id="lgSkipped">0</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Topic Wise Performance -->
+    <div class="rs-card">
+      <div class="rs-card-title">Topic Wise Performance</div>
+      <div class="topic-list">
+        <div class="tp-row">
+          <span class="tp-name">Syntax</span>
+          <div class="tp-track"><div class="tp-fill" id="tpSyntax" style="width:0%;background:#22c55e"></div></div>
+          <span class="tp-pct" id="tpSyntaxPct">0%</span>
+        </div>
+        <div class="tp-row">
+          <span class="tp-name">Variables</span>
+          <div class="tp-track"><div class="tp-fill" id="tpVars" style="width:0%;background:#3b82f6"></div></div>
+          <span class="tp-pct" id="tpVarsPct">0%</span>
+        </div>
+        <div class="tp-row">
+          <span class="tp-name">Functions</span>
+          <div class="tp-track"><div class="tp-fill" id="tpFuncs" style="width:0%;background:#f59e0b"></div></div>
+          <span class="tp-pct" id="tpFuncsPct">0%</span>
+        </div>
+        <div class="tp-row">
+          <span class="tp-name">Pointers</span>
+          <div class="tp-track"><div class="tp-fill" id="tpPtrs" style="width:0%;background:#ef4444"></div></div>
+          <span class="tp-pct" id="tpPtrsPct">0%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Submissions -->
+    <div class="rs-card">
+      <div class="rs-card-hdr">
+        <span class="rs-card-title">Recent Submissions</span>
+        <a class="rs-view-all" href="#" id="viewAllLink">View All</a>
+      </div>
+      <div class="sub-list" id="subList">
+        <div class="sub-empty">No submissions yet. Run your code!</div>
+      </div>
+      <button class="btn-view-subs" id="btnViewSubs">View All Submissions →</button>
+    </div>
+
+    <!-- AI Chat -->
+    <div class="rs-card chat-card">
+      <div class="rs-card-hdr">
+        <span class="rs-card-title">🤖 AI Assistant</span>
+        <span class="online-pill">● Online</span>
+      </div>
+      <div class="chat-msgs" id="chatMsgs">
+        <div class="chat-msg bot">Hi! 👋 I help you <strong>understand</strong> errors and <strong>think through</strong> logic!</div>
+      </div>
+      <div class="chat-quick">
+        <button class="cq" data-q="why">Why this error?</button>
+        <button class="cq" data-q="fix">How to fix?</button>
+        <button class="cq" data-q="logic">Guide me</button>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Ask anything..."/>
+        <button id="btnSend">➤</button>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<!-- LOGIC BUILDER MODAL -->
+<div class="modal-overlay hidden" id="logicModal">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <span>🧠 Logic Builder — Step-by-Step Guide</span>
+      <button id="closeModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <p>Describe what your program should do. I'll break it into logical steps — teaching you <em>how to think</em>, not just what to write.</p>
+      <div class="lb-row">
+        <input type="text" id="lbInput" placeholder="e.g. Add two numbers and print the result"/>
+        <button id="btnLbGen">Generate Steps</button>
+      </div>
+      <div id="lbSteps"></div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
 </body>
 </html>

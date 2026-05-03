@@ -1,13 +1,24 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from compiler import compile_and_run
 from tutor import analyze_error
 from database import log_compilation, get_dashboard_stats
 import traceback
+import os
 
 app = Flask(__name__)
 # Enable CORS for the vanilla HTML frontend to interact with the API
 CORS(app)
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+@app.route('/')
+def serve_index():
+    return send_from_directory(BASE_DIR, 'index.html')
+
+@app.route('/<path:filename>')
+def serve_static(filename):
+    return send_from_directory(BASE_DIR, filename)
 
 @app.route('/api/compile', methods=['POST'])
 def compile_code():
